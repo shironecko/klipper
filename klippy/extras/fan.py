@@ -19,7 +19,7 @@ class Fan:
         self.off_below = config.getfloat('off_below', default=0.,
                                          minval=0., maxval=1.)
 
-        self.mcu_fan = PinWrapper(self.printer, config, default_shutdown_speed)
+        self.mcu_fan = PinWrapper(config, self.printer, self.max_power, default_shutdown_speed)
 
         self.enable_pin = None
         enable_pin = config.get('enable_pin', None)
@@ -72,7 +72,7 @@ class Fan:
         }
 
 class PinWrapper:
-    def __init__(self, printer, config, default_shutdown_speed=0.):
+    def __init__(self, config, printer, max_power, default_shutdown_speed=0.):
         self.printer = printer
         if config.get('pin', None) is not None:
             # Setup pwm object
@@ -84,7 +84,7 @@ class PinWrapper:
             self.mcu_fan = ppins.setup_pin('pwm', config.get('pin'))
             self.mcu_fan.setup_max_duration(0.)
             self.mcu_fan.setup_cycle_time(cycle_time, hardware_pwm)
-            shutdown_power = max(0., min(self.max_power, shutdown_speed))
+            shutdown_power = max(0., min(max_power, shutdown_speed))
             self.mcu_fan.setup_start_value(0., shutdown_power)
         else:
             self.emc2101 = self.printer.lookup_oblect(config.get('emc2101'))
