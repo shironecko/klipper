@@ -18,21 +18,13 @@ class Fan:
                                                minval=0.)
         self.off_below = config.getfloat('off_below', default=0.,
                                          minval=0., maxval=1.)
-        cycle_time = config.getfloat('cycle_time', 0.010, above=0.)
-        hardware_pwm = config.getboolean('hardware_pwm', False)
-        shutdown_speed = config.getfloat(
-            'shutdown_speed', default_shutdown_speed, minval=0., maxval=1.)
-        # Setup pwm object
-        ppins = self.printer.lookup_object('pins')
-        self.mcu_fan = ppins.setup_pin('pwm', config.get('pin'))
-        self.mcu_fan.setup_max_duration(0.)
-        self.mcu_fan.setup_cycle_time(cycle_time, hardware_pwm)
-        shutdown_power = max(0., min(self.max_power, shutdown_speed))
-        self.mcu_fan.setup_start_value(0., shutdown_power)
+
+        self.mcu_fan = PinWrapper(config, default_shutdown_speed)
 
         self.enable_pin = None
         enable_pin = config.get('enable_pin', None)
         if enable_pin is not None:
+            ppins = self.printer.lookup_object('pins')
             self.enable_pin = ppins.setup_pin('digital_out', enable_pin)
             self.enable_pin.setup_max_duration(0.)
 
@@ -78,6 +70,35 @@ class Fan:
             'speed': self.last_fan_value,
             'rpm': tachometer_status['rpm'],
         }
+
+class PinWrapper:
+    def __init__(self, config, default_shutdown_speed=0.):
+        if config.get('pin', None) is not None:
+            # Setup pwm object
+            cycle_time = config.getfloat('cycle_time', 0.010, above=0.)
+            hardware_pwm = config.getboolean('hardware_pwm', False)
+            shutdown_speed = config.getfloat(
+            'shutdown_speed', default_shutdown_speed, minval=0., maxval=1.)
+            ppins = self.printer.lookup_object('pins')
+            self.mcu_fan = ppins.setup_pin('pwm', config.get('pin'))
+            self.mcu_fan.setup_max_duration(0.)
+            self.mcu_fan.setup_cycle_time(cycle_time, hardware_pwm)
+            shutdown_power = max(0., min(self.max_power, shutdown_speed))
+            self.mcu_fan.setup_start_value(0., shutdown_power)
+        else:
+            self.emc2101 = self.printer.lookup_oblect(config.get('emc2101'))
+
+    def get_mcu(self):
+        if self.mcu_fan is not None:
+            return self.mcu_fan.get_mcu()
+        else:
+            return self.emc2101.get_mcu()
+    
+    def set_pwm(self, print_time, value):
+        if self.mcu_fan is not None:
+            self.mcu_fan.set_pwm(print_time, value)
+        else:
+            self.emc2101.set_fan_speed(value)
 
 class FanTachometer:
     def __init__(self, config):
