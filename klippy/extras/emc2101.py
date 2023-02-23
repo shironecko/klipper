@@ -48,18 +48,6 @@ EMC2101_I2C_ADDR = 0x4C # The default I2C address
 EMC2101_FAN_RPM_NUMERATOR = 5400000 # Conversion unit to convert LSBs to fan RPM
 _TEMP_LSB = 0.125 # single bit value for internal temperature readings
 
-#typedef enum {
-#  EMC2101_RATE_1_16_HZ, ///< 1_16_HZ
-#  EMC2101_RATE_1_8_HZ,  ///< 1_8_HZ
-#  EMC2101_RATE_1_4_HZ,  ///< 1_4_HZ
-#  EMC2101_RATE_1_2_HZ,  ///< 1_2_HZ
-#  EMC2101_RATE_1_HZ,    ///< 1_HZ
-#  EMC2101_RATE_2_HZ,    ///< 2_HZ
-#  EMC2101_RATE_4_HZ,    ///< 4_HZ
-#  EMC2101_RATE_8_HZ,    ///< 8_HZ
-#  EMC2101_RATE_16_HZ,   ///< 16_HZ
-#  EMC2101_RATE_32_HZ,   ///< 32_HZ
-#} emc2101_rate_t;
 
 class EMC2101:
     def __init__(self, config):
