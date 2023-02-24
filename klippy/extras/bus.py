@@ -142,7 +142,7 @@ def MCU_SPI_from_config(config, mode, pin_option="cs_pin",
 
 # Helper code for working with devices connected to an MCU via an I2C bus
 class MCU_I2C:
-    def __init__(self, mcu, bus, addr, speed, tca9548a, tca9548a_channel):
+    def __init__(self, mcu, bus, addr, speed, data_processor):
         self.mcu = mcu
         self.bus = bus
         self.i2c_address = addr
@@ -152,8 +152,7 @@ class MCU_I2C:
         self.cmd_queue = self.mcu.alloc_command_queue()
         self.mcu.register_config_callback(self.build_config)
         self.i2c_write_cmd = self.i2c_read_cmd = self.i2c_modify_bits_cmd = None
-        self.tca9548a = tca9548a
-        self.tca9548a_channel = tca9548a_channel
+        self.data_processor = data_processor
     def get_oid(self):
         return self.oid
     def get_mcu(self):
@@ -175,7 +174,7 @@ class MCU_I2C:
             "i2c_modify_bits oid=%c reg=%*s clear_set_bits=%*s",
             cq=self.cmd_queue)
     def i2c_write(self, data, minclock=0, reqclock=0):
-        self._multiplex_prepare()
+        data = self.data_processor(data)
         if self.i2c_write_cmd is None:
             # Send setup message via mcu initialization
             data_msg = "".join(["%02x" % (x,) for x in data])
@@ -184,15 +183,11 @@ class MCU_I2C:
             return
         self.i2c_write_cmd.send([self.oid, data],
                                 minclock=minclock, reqclock=reqclock)
-        self._multiplex_finalise()
     def i2c_read(self, write, read_len):
-        self._multiplex_prepare()
-        result = self.i2c_read_cmd.send([self.oid, write, read_len])
-        self._multiplex_finalise()
-        return result
+        write = self.data_processor(write)
+        return self.i2c_read_cmd.send([self.oid, write, read_len])
     def i2c_modify_bits(self, reg, clear_bits, set_bits,
                         minclock=0, reqclock=0):
-        self._multiplex_prepare()
         clearset = clear_bits + set_bits
         if self.i2c_modify_bits_cmd is None:
             # Send setup message via mcu initialization
@@ -204,13 +199,6 @@ class MCU_I2C:
             return
         self.i2c_modify_bits_cmd.send([self.oid, reg, clearset],
                                       minclock=minclock, reqclock=reqclock)
-        self._multiplex_finalise()
-    def _multiplex_prepare(self):
-        if self.tca9548a is not None:
-            self.tca9548a.set_port_enabled(self.tca9548a_channel, True)
-    def _multiplex_finalise(self):
-        if self.tca9548a is not None:
-            self.tca9548a.set_port_enabled(self.tca9548a_channel, False)
 
 def MCU_I2C_from_config(config, default_addr=None, default_speed=100000):
     # Load bus parameters
@@ -218,20 +206,25 @@ def MCU_I2C_from_config(config, default_addr=None, default_speed=100000):
     i2c_mcu = mcu.get_printer_mcu(printer, config.get('i2c_mcu', 'mcu'))
     speed = config.getint('i2c_speed', default_speed, minval=100000)
     bus = config.get('i2c_bus', None)
-    tca9548a_name = config.get('i2c_tca9548a', None)
     
     if default_addr is None:
         addr = config.getint('i2c_address', minval=0, maxval=127)
     else:
         addr = config.getint('i2c_address', default_addr, minval=0, maxval=127)
     
-    tca9548a = None
-    tca9548a_channel = None
-    if tca9548a_name is not None:
-        tca9548a = printer.lookup_object('tca9548a ' + tca9548a_name)
-        tca9548a_channel = config.getint('i2c_tca9548a_channel')
+    multiplexer = config.get('multiplexer', None)
+    data_processor = lambda data: data
+    if multiplexer is not None:
+        if multiplexer.lower() == 'tca9548a':
+            channel = config.getint('multiplexer_channel', minval=0, maxval=7)
+            channel_mask = 1 << channel
+            def dp(data):
+                prefix = [0x70, channel_mask]
+                postfix = [0x70, 0x0]
+                return [*prefix, *data, *postfix]
+            data_processor = dp
     # Create MCU_I2C object
-    return MCU_I2C(i2c_mcu, bus, addr, speed, tca9548a, tca9548a_channel)
+    return MCU_I2C(i2c_mcu, bus, addr, speed, data_processor)
 
 
 ######################################################################
