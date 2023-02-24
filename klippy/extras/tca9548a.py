@@ -19,7 +19,7 @@ class TCA9548A:
     def set_port_enabled(self, port, enabled):
         port = min(port, 7)
         params = self.i2c.i2c_read([TCA9548A_CHIP_ADDR], 1)
-        settings = params['response']
+        settings = params['response'][0]
         if enabled:
             settings |= (1 << port)
         else:
