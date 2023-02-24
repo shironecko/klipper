@@ -74,6 +74,7 @@ class Fan:
 class PinWrapper:
     def __init__(self, config, printer, max_power, default_shutdown_speed=0.):
         self.printer = printer
+        self.mcu_fan = None
         if config.get('pin', None) is not None:
             # Setup pwm object
             cycle_time = config.getfloat('cycle_time', 0.010, above=0.)
