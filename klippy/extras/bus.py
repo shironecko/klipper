@@ -212,11 +212,11 @@ def MCU_I2C_from_config(config, default_addr=None, default_speed=100000):
     else:
         addr = config.getint('i2c_address', default_addr, minval=0, maxval=127)
     
-    multiplexer = config.get('multiplexer', None)
+    multiplexer = config.get('i2c_multiplexer', None)
     data_processor = lambda data: data
     if multiplexer is not None:
         if multiplexer.lower() == 'tca9548a':
-            channel = config.getint('multiplexer_channel', minval=0, maxval=7)
+            channel = config.getint('i2c_multiplexer_channel', minval=0, maxval=7)
             channel_mask = 1 << channel
             def dp(data):
                 prefix = [0x70, channel_mask]
