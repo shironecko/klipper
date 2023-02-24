@@ -219,15 +219,17 @@ def MCU_I2C_from_config(config, default_addr=None, default_speed=100000):
     speed = config.getint('i2c_speed', default_speed, minval=100000)
     bus = config.get('i2c_bus', None)
     tca9548a_name = config.get('i2c_tca9548a', None)
-    tca9548a_channel = config.getint('i2c_tca9548a_channel')
+    
     if default_addr is None:
         addr = config.getint('i2c_address', minval=0, maxval=127)
     else:
         addr = config.getint('i2c_address', default_addr, minval=0, maxval=127)
     
     tca9548a = None
+    tca9548a_channel = None
     if tca9548a_name is not None:
         tca9548a = printer.lookup_oblect(tca9548a_name)
+        tca9548a_channel = config.getint('i2c_tca9548a_channel')
     # Create MCU_I2C object
     return MCU_I2C(i2c_mcu, bus, addr, speed, tca9548a, tca9548a_channel)
 
