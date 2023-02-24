@@ -26,3 +26,6 @@ class TCA9548A:
             settings &= ~(1 << port)
         
         self.i2c.i2c_write([TCA9548A_CHIP_ADDR, settings])
+
+def load_config_prefix(config):
+    return TCA9548A(config)

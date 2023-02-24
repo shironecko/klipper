@@ -81,3 +81,6 @@ class EMC2101:
         reg = EMC2101_REGS[reg_name]
         data.insert(0, reg)
         self.i2c.i2c_write(data)
+
+def load_config_prefix(config):
+    return EMC2101(config)
