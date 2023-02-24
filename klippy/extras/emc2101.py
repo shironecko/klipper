@@ -63,32 +63,32 @@ class EMC2101:
         else:
             logging.info('emc2101: Chip ID %#x' % chipid)
 
-        settings = self._read_register(EMC2101_REGS['CONFIG'], 1)[0]
+        settings = self._read_register('CONFIG', 1)[0]
         settings |= 1 << 2 # enable tach input
         settings &= ~(1 << 4) # fan in PWM mode
-        self._write_register(EMC2101_REGS['CONFIG'], settings)
+        self._write_register('CONFIG', settings)
         
-        settings = self._read_register(EMC2101_REGS['FAN_CONFIG'], 1)[0]
+        settings = self._read_register('FAN_CONFIG', 1)[0]
         settings |= 1 # set tach to read 0xFFFF below min RPM
         settings &= ~(1 << 2) # no PWM clock freq override
         settings |= 1 << 3 # base PWM clock to 1.4kHz
         settings &= ~(1 << 4) # disable invert fan speed
         settings |= 1 << 5 # manual fan control
-        self._write_register(EMC2101_REGS['FAN_CONFIG'], settings)
+        self._write_register('FAN_CONFIG', settings)
 
         # max PWM resolution
-        self._write_register(EMC2101_REGS['PWM_FREQ'], 0x1F)
+        self._write_register('PWM_FREQ', 0x1F)
 
         # maximum convertion rate
-        self._write_register(EMC2101_REGS['DATA_RATE'], 0b1001)
+        self._write_register('DATA_RATE', 0b1001)
     
     def set_fan_speed(self, value):
         mapped_value = int(63 * value)
-        self._write_register(EMC2101_REGS['FAN_SETTING'], mapped_value)
+        self._write_register('FAN_SETTING', mapped_value)
     
     def get_fan_rpm(self):
-        lsb = self._read_register(EMC2101_REGS['TACH_LSB'], 1)[0]
-        msb = self._read_register(EMC2101_REGS['TACH_MSB'], 1)[0]
+        lsb = self._read_register('TACH_LSB', 1)[0]
+        msb = self._read_register('TACH_MSB', 1)[0]
         raw = (msb << 8) | lsb
         if raw == 0xFFFF:
             raw = 0
