@@ -228,7 +228,7 @@ def MCU_I2C_from_config(config, default_addr=None, default_speed=100000):
     tca9548a = None
     tca9548a_channel = None
     if tca9548a_name is not None:
-        tca9548a = printer.lookup_oblect(tca9548a_name)
+        tca9548a = printer.lookup_object(tca9548a_name)
         tca9548a_channel = config.getint('i2c_tca9548a_channel')
     # Create MCU_I2C object
     return MCU_I2C(i2c_mcu, bus, addr, speed, tca9548a, tca9548a_channel)
