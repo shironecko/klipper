@@ -88,7 +88,7 @@ class PinWrapper:
             self.mcu_fan.setup_start_value(0., shutdown_power)
         else:
             emc2101_name = config.get('emc2101')
-            self.emc2101 = self.printer.lookup_object('emc2101 ' + emc2101_name)
+            self.emc2101 = self.printer.lookup_object(emc2101_name)
 
     def get_mcu(self):
         if self.mcu_fan is not None:
