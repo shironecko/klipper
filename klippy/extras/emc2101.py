@@ -15,24 +15,24 @@ EMC2101_REGS = {
     'WHOAMI': 0xFD,
     'INTERNAL_TEMP': 0x00,
     'STATUS': 0x02,
-    'REG_CONFIG': 0x03,
-    'FAN_CONFIG': 0x4A
+    'CONFIG': 0x03,
+    'DATA_RATE': 0x04,
+    'TACH_LSB': 0x46,
+    'TACH_MSB': 0x47,
+    'FAN_CONFIG': 0x4A,
+    'FAN_SPINUP': 0x4B,
+    'FAN_SETTING': 0x4C,
+    'PWM_FREQ': 0x4D,
+    'PWM_DIV': 0x4E
 }
 
 EMC2101_EXTERNAL_TEMP_MSB = 0x01 # high byte for the external temperature reading
 EMC2101_EXTERNAL_TEMP_LSB = 0x10 # low byte for the external temperature reading
 
-EMC2101_REG_DATA_RATE = 0x04 # Data rate config
 EMC2101_TEMP_FORCE = 0x0C    # Temp force setting for LUT testing
-EMC2101_TACH_LSB = 0x46      # Tach RPM data low byte
-EMC2101_TACH_MSB = 0x47      # Tach RPM data high byte
 EMC2101_TACH_LIMIT_LSB = 0x48 # Tach low-speed setting low byte. INVERSE OF THE SPEED
 EMC2101_TACH_LIMIT_MSB = 0x49 # Tach low-speed setting high byte. INVERSE OF THE SPEED
 
-EMC2101_FAN_SPINUP = 0x4B # Fan spinup behavior settings
-EMC2101_REG_FAN_SETTING = 0x4C # Fan speed for non-LUT settings, as a % PWM duty cycle
-EMC2101_PWM_FREQ = 0x4D # PWM frequency setting
-EMC2101_PWM_DIV = 0x4E  # PWM frequency divisor
 EMC2101_LUT_HYSTERESIS = 0x4F # The hysteresis value for LUT lookups when temp is decreasing
 
 EMC2101_LUT_START = 0x50 # The first temp threshold register
@@ -44,7 +44,6 @@ EMC2101_REG_MFGID = 0xFE  # 0xFF16
 MAX_LUT_SPEED = 0x3F # 6-bit value
 MAX_LUT_TEMP = 0x7F  #  7-bit
 
-EMC2101_I2C_ADDR = 0x4C # The default I2C address
 EMC2101_FAN_RPM_NUMERATOR = 5400000 # Conversion unit to convert LSBs to fan RPM
 _TEMP_LSB = 0.125 # single bit value for internal temperature readings
 
@@ -63,9 +62,38 @@ class EMC2101:
             logging.error('emc2101: Unexpected chip ID %#x' % chipid)
         else:
             logging.info('emc2101: Chip ID %#x' % chipid)
+
+        settings = self._read_register(EMC2101_REGS['CONFIG'], 1)[0]
+        settings |= 1 << 2 # enable tach input
+        settings &= ~(1 << 4) # fan in PWM mode
+        self._write_register(EMC2101_REGS['CONFIG'], settings)
+        
+        settings = self._read_register(EMC2101_REGS['FAN_CONFIG'], 1)[0]
+        settings |= 1 # set tach to read 0xFFFF below min RPM
+        settings &= ~(1 << 2) # no PWM clock freq override
+        settings |= 1 << 3 # base PWM clock to 1.4kHz
+        settings &= ~(1 << 4) # disable invert fan speed
+        settings |= 1 << 5 # manual fan control
+        self._write_register(EMC2101_REGS['FAN_CONFIG'], settings)
+
+        # max PWM resolution
+        self._write_register(EMC2101_REGS['PWM_FREQ'], 0x1F)
+
+        # maximum convertion rate
+        self._write_register(EMC2101_REGS['DATA_RATE'], 0b1001)
     
     def set_fan_speed(self, value):
-        logging.info(f'emc2101 {self.name} set fan speed {value}')
+        mapped_value = int(63 * value)
+        self._write_register(EMC2101_REGS['FAN_SETTING'], mapped_value)
+    
+    def get_fan_rpm(self):
+        lsb = self._read_register(EMC2101_REGS['TACH_LSB'], 1)[0]
+        msb = self._read_register(EMC2101_REGS['TACH_MSB'], 1)[0]
+        raw = (msb << 8) | lsb
+        if raw == 0xFFFF:
+            raw = 0
+        
+        return EMC2101_FAN_RPM_NUMERATOR / raw
 
     def get_mcu(self):
         return self.i2c.get_mcu()
