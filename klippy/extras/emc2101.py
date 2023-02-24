@@ -90,8 +90,8 @@ class EMC2101:
         lsb = self._read_register('TACH_LSB', 1)[0]
         msb = self._read_register('TACH_MSB', 1)[0]
         raw = (msb << 8) | lsb
-        if raw == 0xFFFF:
-            raw = 0
+        if raw == 0xFFFF or raw == 0:
+            return 0
         
         return EMC2101_FAN_RPM_NUMERATOR / raw
 
