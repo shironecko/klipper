@@ -85,6 +85,7 @@ class EMC2101:
         self._write_register('DATA_RATE', 0b1001)
     
     def set_fan_speed(self, value):
+        logging.info(f"emc2021 {self._name}: duty cycle {value}")
         mapped_value = int(63 * value)
         self._write_register('FAN_SETTING', mapped_value)
     
