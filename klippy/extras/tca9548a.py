@@ -60,8 +60,9 @@ class TCA9548A_Channel:
         self._close()
     def i2c_read(self, write, read_len):
         self._open()
-        self._mcu_i2c.i2c_read(write, read_len)
+        result = self._mcu_i2c.i2c_read(write, read_len)
         self._close()
+        return result
     def i2c_modify_bits(self, reg, clear_bits, set_bits,
                         minclock=0, reqclock=0):
         self._open()
