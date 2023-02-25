@@ -3,7 +3,7 @@
 # Copyright (C) 2023  Vii <vii@gamecraft.tech>
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
-import logging
+import logging, threading
 from . import bus
 import mcu
 
@@ -18,6 +18,7 @@ class TCA9548A:
         self._i2c = bus.MCU_I2C_from_config(config, default_addr=TCA9548A_CHIP_ADDR, cmd_queue=self._cmd_queue)
         self._channels = [None] * 8
         self._active_channel = None
+        self._lock = threading.Lock()
 
         self._printer.add_object("tca9548a " + self._name, self)
 
@@ -28,7 +29,7 @@ class TCA9548A:
         
         i2c = bus.MCU_I2C(self._i2c.get_mcu(), self._i2c.get_bus(), i2c_address, self._i2c.get_i2c_speed(), self._cmd_queue)
         self._channels[channel] = i2c.get_oid()
-        return TCA9548A_Channel(self, i2c)
+        return TCA9548A_Channel(self, i2c, self._lock)
     
     def _open_channel(self, oid):
         if self._active_channel is not None:
@@ -50,25 +51,29 @@ def load_config_prefix(config):
     return TCA9548A(config)
 
 class TCA9548A_Channel:
-    def __init__(self, tca9548a, mcu_i2c):
+    def __init__(self, tca9548a, mcu_i2c, lock):
         self._tca9548a = tca9548a
         self._mcu_i2c = mcu_i2c
+        self._lock = lock
 
     def i2c_write(self, data, minclock=0, reqclock=0):
-        self._open()
-        self._mcu_i2c.i2c_write(data, minclock, reqclock)
-        self._close()
+        with self._lock:
+            self._open()
+            self._mcu_i2c.i2c_write(data, minclock, reqclock)
+            self._close()
     def i2c_read(self, write, read_len):
-        self._open()
-        result = self._mcu_i2c.i2c_read(write, read_len)
-        self._close()
+        with self._lock:
+            self._open()
+            result = self._mcu_i2c.i2c_read(write, read_len)
+            self._close()
         return result
     def i2c_modify_bits(self, reg, clear_bits, set_bits,
                         minclock=0, reqclock=0):
-        self._open()
-        self._mcu_i2c.i2c_modify_bits(reg, clear_bits, set_bits,
+        with self._lock:
+            self._open()
+            self._mcu_i2c.i2c_modify_bits(reg, clear_bits, set_bits,
                         minclock, reqclock)
-        self._close()
+            self._close()
 
     def _open(self):
         self._tca9548a._open_channel(self.get_oid())
