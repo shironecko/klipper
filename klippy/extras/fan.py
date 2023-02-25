@@ -124,8 +124,8 @@ class FanTachometer:
     def get_status(self, eventtime):
         if self._freq_counter is not None:
             rpm = self._freq_counter.get_frequency() * 30. / self.ppr
-        #elif self._emc2101 is not None:
-            #rpm = self._emc2101.get_fan_rpm()
+        elif self._emc2101 is not None:
+            rpm = self._emc2101.get_fan_rpm()
         else:
             rpm = None
         return {'rpm': rpm}
