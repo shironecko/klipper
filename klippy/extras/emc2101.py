@@ -55,6 +55,8 @@ class EMC2101:
         self.i2c = bus.MCU_I2C_from_config(config, EMC2101_CHIP_ADDR)
 
         self.printer.add_object('emc2101 ' + self.name, self)
+        self.printer.register_event_handler("klippy:connect",
+                                            self.handle_connect)
     
     def handle_connect(self):
         chipid = self._read_register('WHOAMI', 1)[0]
