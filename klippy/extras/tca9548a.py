@@ -13,8 +13,8 @@ class TCA9548A:
     def __init__(self, config):
         self._printer = config.get_printer()
         self._name = config.get_name().split()[-1]
-        mcu = mcu.get_printer_mcu(self._printer, config.get('i2c_mcu', 'mcu'))
-        self._cmd_queue = mcu.alloc_command_queue()
+        i2c_mcu = mcu.get_printer_mcu(self._printer, config.get('i2c_mcu', 'mcu'))
+        self._cmd_queue = i2c_mcu.alloc_command_queue()
         self._i2c = bus.MCU_I2C_from_config(config, default_addr=TCA9548A_CHIP_ADDR, cmd_queue=self._cmd_queue)
         self._channels = [None] * 8
         self._active_channel = None
