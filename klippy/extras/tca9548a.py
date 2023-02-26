@@ -29,7 +29,7 @@ class TCA9548A:
         
         i2c = bus.MCU_I2C(self._i2c.get_mcu(), self._i2c.get_bus(), i2c_address, self._i2c.get_i2c_speed(), self._cmd_queue)
         self._channels[channel] = i2c.get_oid()
-        return TCA9548A_Channel(self, i2c, self._lock)
+        return TCA9548A_Channel(self, i2c, self._mutex)
     
     def _open_channel(self, oid):
         if self._active_channel is not None:
