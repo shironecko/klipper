@@ -8,8 +8,8 @@ from . import bus
 
 EMC2101_CHIP_ADDR = 0x4C
 
-EMC2101_CHIP_ID = 0x16     # EMC2101 default device id from part id
-EMC2101_ALT_CHIP_ID = 0x28 # EMC2101 alternate device id from part id
+EMC2101_CHIP_ID = 0x16
+EMC2101_R_CHIP_ID = 0x28
 
 EMC2101_REGS = {
     'WHOAMI': 0xFD,
@@ -50,20 +50,20 @@ _TEMP_LSB = 0.125 # single bit value for internal temperature readings
 
 class EMC2101:
     def __init__(self, config):
-        self.printer = config.get_printer()
-        self.name = config.get_name().split()[-1]
-        self.i2c = bus.MCU_I2C_from_config(config, EMC2101_CHIP_ADDR)
+        self._printer = config.get_printer()
+        self._name = config.get_name().split()[-1]
+        self._i2c = bus.MCU_I2C_from_config(config, EMC2101_CHIP_ADDR)
 
-        self.printer.add_object('emc2101 ' + self.name, self)
-        self.printer.register_event_handler("klippy:connect",
+        self._printer.add_object('emc2101 ' + self._name, self)
+        self._printer.register_event_handler("klippy:connect",
                                             self.handle_connect)
     
     def handle_connect(self):
         chipid = self._read_register('WHOAMI', 1)[0]
-        if chipid != EMC2101_CHIP_ID and chipid != EMC2101_ALT_CHIP_ID:
-            logging.error('emc2101: Unexpected chip ID %#x' % chipid)
+        if chipid != EMC2101_CHIP_ID and chipid != EMC2101_R_CHIP_ID:
+            logging.error(f'emc2101 {self._name}: Unexpected chip ID {chipid:0x}')
         else:
-            logging.info('emc2101: Chip ID %#x' % chipid)
+            logging.info(f'emc2101 {self._name}: Chip ID {chipid:0x}')
 
         settings = self._read_register('CONFIG', 1)[0]
         settings |= 1 << 2 # enable tach input
@@ -78,6 +78,9 @@ class EMC2101:
         settings |= 1 << 5 # manual fan control
         self._write_register('FAN_CONFIG', settings)
 
+        # no HW spinup, let Klipper handle it
+        self._write_register('FAN_SPINUP', 0x0)
+
         # max PWM resolution
         self._write_register('PWM_FREQ', 0x1F)
 
@@ -90,20 +93,19 @@ class EMC2101:
         self._write_register('FAN_SETTING', mapped_value)
     
     def get_fan_rpm(self):
-        lsb = self._read_register('TACH_LSB', 1)[0]
-        msb = self._read_register('TACH_MSB', 1)[0]
-        raw = (msb << 8) | lsb
+        response = bytearray(self._i2c.i2c_read([EMC2101_REGS['TACH_LSB'], EMC2101_REGS['TACH_MSB']], 2))
+        raw = (response[1] << 8) | response[0]
         if raw == 0xFFFF or raw == 0:
             return 0
         
         return EMC2101_FAN_RPM_NUMERATOR / raw
 
     def get_mcu(self):
-        return self.i2c.get_mcu()
+        return self._i2c.get_mcu()
 
     def _read_register(self, reg_name, read_len):
         regs = [EMC2101_REGS[reg_name]]
-        params = self.i2c.i2c_read(regs, read_len)
+        params = self._i2c.i2c_read(regs, read_len)
         return bytearray(params['response'])
     
     def _write_register(self, reg_name, data):
@@ -111,7 +113,7 @@ class EMC2101:
             data = [data]
         reg = EMC2101_REGS[reg_name]
         data.insert(0, reg)
-        self.i2c.i2c_write(data)
+        self._i2c.i2c_write(data)
 
 def load_config_prefix(config):
     return EMC2101(config)
