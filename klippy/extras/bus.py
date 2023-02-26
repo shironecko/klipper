@@ -214,7 +214,7 @@ def MCU_I2C_from_config(config, default_addr=None, default_speed=100000, cmd_que
     mux = config.get('i2c_mux', None)
     if mux is not None:
         m = printer.lookup_object(mux)
-        return m.add_channel(config, addr)
+        return m.claim_channel(config, addr)
     
     # Load bus parameters
     i2c_mcu = mcu.get_printer_mcu(printer, config.get('i2c_mcu', 'mcu'))
