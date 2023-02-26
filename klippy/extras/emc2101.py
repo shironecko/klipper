@@ -13,8 +13,6 @@ EMC2101_R_CHIP_ID = 0x28
 
 EMC2101_REGS = {
     'WHOAMI': 0xFD,
-    'INTERNAL_TEMP': 0x00,
-    'STATUS': 0x02,
     'CONFIG': 0x03,
     'DATA_RATE': 0x04,
     'TACH_LSB': 0x46,
@@ -26,33 +24,17 @@ EMC2101_REGS = {
     'PWM_DIV': 0x4E
 }
 
-EMC2101_EXTERNAL_TEMP_MSB = 0x01 # high byte for the external temperature reading
-EMC2101_EXTERNAL_TEMP_LSB = 0x10 # low byte for the external temperature reading
-
-EMC2101_TEMP_FORCE = 0x0C    # Temp force setting for LUT testing
-EMC2101_TACH_LIMIT_LSB = 0x48 # Tach low-speed setting low byte. INVERSE OF THE SPEED
-EMC2101_TACH_LIMIT_MSB = 0x49 # Tach low-speed setting high byte. INVERSE OF THE SPEED
-
-EMC2101_LUT_HYSTERESIS = 0x4F # The hysteresis value for LUT lookups when temp is decreasing
-
-EMC2101_LUT_START = 0x50 # The first temp threshold register
-
-EMC2101_TEMP_FILTER = 0xBF # The external temperature sensor filtering behavior
-EMC2101_REG_PARTID = 0xFD # 0x16
-EMC2101_REG_MFGID = 0xFE  # 0xFF16
-
-MAX_LUT_SPEED = 0x3F # 6-bit value
-MAX_LUT_TEMP = 0x7F  #  7-bit
-
-EMC2101_FAN_RPM_NUMERATOR = 5400000 # Conversion unit to convert LSBs to fan RPM
-_TEMP_LSB = 0.125 # single bit value for internal temperature readings
-
+# Conversion unit to convert chip readings to fan RPM
+EMC2101_FAN_RPM_NUMERATOR = 5400000
 
 class EMC2101:
     def __init__(self, config):
         self._printer = config.get_printer()
         self._name = config.get_name().split()[-1]
         self._i2c = bus.MCU_I2C_from_config(config, EMC2101_CHIP_ADDR)
+        self._mcu = self._i2c.get_mcu()
+
+        self._last_clock = 0
 
         self._printer.add_object('emc2101 ' + self._name, self)
         self._printer.register_event_handler("klippy:connect",
@@ -84,12 +66,20 @@ class EMC2101:
         # max PWM resolution
         self._write_register('PWM_FREQ', 0x1F)
 
-        # maximum convertion rate
-        self._write_register('DATA_RATE', 0b1001)
+        # lowest temperature meauserment rate
+        self._write_register('DATA_RATE', 0x0)
     
-    def set_fan_speed(self, value):
+    def set_fan_speed(self, print_time, value):
+        clock = self._mcu.print_time_to_clock(print_time)
+        minclock = self._last_clock
+        self._last_clock = clock
+
         mapped_value = int(63 * value)
-        self._write_register('FAN_SETTING', mapped_value)
+        self._write_register(
+            'FAN_SETTING',
+            mapped_value,
+            minclock=minclock,
+            reqclock=clock)
     
     def get_fan_rpm(self):
         lsb = self._read_register('TACH_LSB', 1)[0]
@@ -108,12 +98,12 @@ class EMC2101:
         params = self._i2c.i2c_read(regs, read_len)
         return bytearray(params['response'])
     
-    def _write_register(self, reg_name, data):
+    def _write_register(self, reg_name, data, minclock=0, reqclock=0):
         if type(data) is not list:
             data = [data]
         reg = EMC2101_REGS[reg_name]
         data.insert(0, reg)
-        self._i2c.i2c_write(data)
+        self._i2c.i2c_write(data, minclock=minclock, reqclock=reqclock)
 
 def load_config_prefix(config):
     return EMC2101(config)

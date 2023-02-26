@@ -101,7 +101,7 @@ class PinWrapper:
         if self.mcu_fan is not None:
             self.mcu_fan.set_pwm(print_time, value)
         else:
-            self.emc2101.set_fan_speed(value)
+            self.emc2101.set_fan_speed(print_time, value)
 
 class FanTachometer:
     def __init__(self, config):
