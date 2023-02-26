@@ -93,7 +93,8 @@ class EMC2101:
         self._write_register('FAN_SETTING', mapped_value)
     
     def get_fan_rpm(self):
-        response = bytearray(self._i2c.i2c_read([EMC2101_REGS['TACH_LSB'], EMC2101_REGS['TACH_MSB']], 2))
+        params = self._i2c.i2c_read([EMC2101_REGS['TACH_LSB'], EMC2101_REGS['TACH_MSB']], 2)
+        response = bytearray(params['response'])
         raw = (response[1] << 8) | response[0]
         if raw == 0xFFFF or raw == 0:
             return 0
