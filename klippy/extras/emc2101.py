@@ -83,10 +83,11 @@ class EMC2101:
         # lowest temperature meauserment rate
         self._write_register('DATA_RATE', 0x0)
 
-        self.set_fan_duty_cycle(self._fan_start_duty_cycle)
+        self.set_fan_duty_cycle(0., self._fan_start_duty_cycle)
     
     def _handle_shutdown(self):
-        self.set_fan_duty_cycle(self._fan_shutdown_duty_cycle)
+
+        self.set_fan_duty_cycle(0., self._fan_shutdown_duty_cycle)
     
     def setup_pin(self, pin_type, pin_params):
         if pin_params['pin'] == 'virtual_pwm':
