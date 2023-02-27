@@ -183,9 +183,7 @@ class EMC2101_Tachometer:
         printer = config.get_printer()
         self._reactor = printer.get_reactor()
         self._poll_timer = self._reactor.register_timer(self._poll_rpm)
-        self.printer.register_event_handler(
-            "klippy:ready",
-            self._handle_ready)
+        printer.register_event_handler("klippy:ready", self._handle_ready)
         
     def _handle_ready(self):
         self._reactor.update_timer(self._poll_timer, self._reactor.NOW)
