@@ -38,7 +38,7 @@ class EMC2101:
         self._fan_start_duty_cycle = 0.
         self._fan_shutdown_duty_cycle = 0.
 
-        self._pwm_pin = EMC2101_PWMPinWrapper(
+        self._pwm_pin = EMC2101_Virtual_PWM_Pin(
             self,
             self._printer,
             self._mcu)
@@ -47,9 +47,6 @@ class EMC2101:
         self._printer.register_event_handler(
             'klippy:connect',
             self._handle_connect)
-        self._printer.register_event_handler(
-            'klippy:shutdown',
-            self._handle_shutdown)
         
         # Register virtual PWM pin
         self._printer.lookup_object('pins').register_chip(self._name, self)
@@ -57,17 +54,17 @@ class EMC2101:
     def _handle_connect(self):
         chipid = self._read_register('WHOAMI', 1)[0]
         if chipid != EMC2101_CHIP_ID and chipid != EMC2101_R_CHIP_ID:
-            logging.error(f'EMC2101 {self._name}: Unexpected chip ID {chipid:0x}')
+            logging.warn(f'EMC2101 {self._name}: Unexpected chip ID {chipid:0x}')
         else:
             logging.info(f'EMC2101 {self._name}: Chip ID {chipid:0x}')
 
-        settings = self._read_register('CONFIG', 1)[0]
+        settings = 0x0
         settings |= 1 << 2 # enable tach input
         settings &= ~(1 << 4) # fan in PWM mode
+        settings &= ~(1 << 6) # disable standby
         self._write_register('CONFIG', settings)
         
-        settings = self._read_register('FAN_CONFIG', 1)[0]
-        settings |= 1 # set tach to read 0xFFFF below min RPM
+        settings = 0b11 # set tach to read 0xFFFF below min RPM
         settings &= ~(1 << 2) # no PWM clock freq override
         settings |= 1 << 3 # base PWM clock to 1.4kHz
         settings &= ~(1 << 4) # disable invert fan speed
@@ -85,9 +82,6 @@ class EMC2101:
 
         self._set_fan_duty_cycle_internal(self._fan_start_duty_cycle)
     
-    def _handle_shutdown(self):
-        self._set_fan_duty_cycle_internal(self._fan_shutdown_duty_cycle)
-    
     def setup_pin(self, pin_type, pin_params):
         if pin_params['pin'] == 'virtual_pwm':
             if pin_type != 'pwm':
@@ -98,12 +92,16 @@ class EMC2101:
         else:
             raise pins.error(f'EMC2101 does not have {pin_params["pin"]} pin')
     
+    def setup_tachometer(self, config, sample_time):
+        return EMC2101_Tachometer(config, self, sample_time)
+    
     def set_fan_pwm_cycle_time(self, cycle_time):
         # TODO: implement
         pass
     
     def set_fan_default_duty_cycle(self, start_duty_cycle, shutdown_duty_cycle):
         self._fan_start_duty_cycle = start_duty_cycle
+        # TODO: implement shutdown duty cycle
         self._fan_shutdown_duty_cycle = shutdown_duty_cycle
 
     def set_fan_duty_cycle(self, print_time, value):
@@ -141,7 +139,7 @@ class EMC2101:
         data.insert(0, reg)
         self._i2c.i2c_write(data, minclock, reqclock)
 
-class EMC2101_PWMPinWrapper:
+class EMC2101_Virtual_PWM_Pin:
     def __init__(self, emc2101, printer, mcu):
         self._emc2101 = emc2101
         self._printer = printer
@@ -175,6 +173,26 @@ class EMC2101_PWMPinWrapper:
     def setup_max_duration(self, value):
         if value != 0.:
             raise pins.error('EMC2101 virtual PWM pin can not have max duration')
+
+class EMC2101_Tachometer:
+    def __init__(self, config, emc2101, sample_time):
+        self._emc2101 = emc2101
+        self._sample_time = sample_time
+        self._last_rpm = 0
+        printer = config.get_printer()
+        self._reactor = printer.get_reactor()
+        self._poll_timer = self._reactor.register_timer(self._poll_rpm)
+        self.printer.register_event_handler("klippy:ready",
+                                            self._handle_ready)
+        
+    def _handle_ready(self):
+        self._reactor.update_timer(self._poll_timer, self._reactor.NOW)
+
+    def get_rpm(self):
+        return self._last_rpm
+
+    def _poll_rpm(self, eventtime):
+        pass
 
 def load_config_prefix(config):
     return EMC2101(config)

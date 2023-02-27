@@ -83,27 +83,30 @@ class FanTachometer:
     def __init__(self, config):
         printer = config.get_printer()
         self._freq_counter = None
-        self._emc2101 = None
+        self._dedicated_tach = None
 
         pin = config.get('tachometer_pin', None)
-        emc2101 = config.get('emc2101', None)
         if pin is not None:
             self.ppr = config.getint('tachometer_ppr', 2, minval=1)
             poll_time = config.getfloat('tachometer_poll_interval',
                                         0.0015, above=0.)
             sample_time = 1.
+            
             self._freq_counter = pulse_counter.FrequencyCounter(
                 printer, pin, sample_time, poll_time)
-        elif emc2101 is not None:
-            self._emc2101 = printer.lookup_object('emc2101 ' + emc2101)
+            return
+        
+        tach = config.get('tachometer_object', None)
+        if tach is not None:
+            tach_obj = printer.lookup_object(tach)
+            self._dedicated_tach = tach_obj.setup_tachometer(config)
 
     def get_status(self, eventtime):
+        rpm = None
         if self._freq_counter is not None:
             rpm = self._freq_counter.get_frequency() * 30. / self.ppr
-        elif self._emc2101 is not None:
-            rpm = self._emc2101.get_fan_rpm()
-        else:
-            rpm = None
+        elif self._dedicated_tach is not None:
+            rpm = self._dedicated_tach.get_rpm()
         return {'rpm': rpm}
 
 class PrinterFan:
