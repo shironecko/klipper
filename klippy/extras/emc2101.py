@@ -153,7 +153,7 @@ class EMC2101_PWMPinWrapper:
         if pin_params['pullup'] != 0:
             raise pins.error('EMC2101 virtual PWM pin does not support pullup')
         
-        if pin_params['invert'] != 1:
+        if pin_params['invert'] != 0:
             # Technically not true, but supporting that would require changes to Fan class
             raise pins.error('EMC2101 virtual PWM pin can not be inverted')
 
