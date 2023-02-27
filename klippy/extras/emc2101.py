@@ -83,11 +83,10 @@ class EMC2101:
         # lowest temperature meauserment rate
         self._write_register('DATA_RATE', 0x0)
 
-        self.set_fan_duty_cycle(0., self._fan_start_duty_cycle)
+        self._set_fan_duty_cycle_internal(self._fan_start_duty_cycle)
     
     def _handle_shutdown(self):
-
-        self.set_fan_duty_cycle(0., self._fan_shutdown_duty_cycle)
+        self._set_fan_duty_cycle_internal(self._fan_shutdown_duty_cycle)
     
     def setup_pin(self, pin_type, pin_params):
         if pin_params['pin'] == 'virtual_pwm':
@@ -108,16 +107,15 @@ class EMC2101:
         self._fan_shutdown_duty_cycle = shutdown_duty_cycle
 
     def set_fan_duty_cycle(self, print_time, value):
-        clock = self._mcu.print_time_to_clock(print_time)
+        reqclock = self._mcu.print_time_to_clock(print_time)
         minclock = self._last_clock
-        self._last_clock = clock
+        self._last_clock = reqclock
 
+        self._set_fan_duty_cycle_internal(value, minclock, reqclock)
+    
+    def _set_fan_duty_cycle_internal(self, value, minclock=0, reqclock=0):
         mapped_value = int(63 * value)
-        self._write_register(
-            'FAN_SETTING',
-            mapped_value,
-            minclock=minclock,
-            reqclock=clock)
+        self._write_register('FAN_SETTING', mapped_value, minclock, reqclock)
     
     def get_fan_rpm(self):
         lsb = self._read_register('TACH_LSB', 1)[0]
@@ -141,7 +139,7 @@ class EMC2101:
             data = [data]
         reg = EMC2101_REGS[reg_name]
         data.insert(0, reg)
-        self._i2c.i2c_write(data, minclock=minclock, reqclock=reqclock)
+        self._i2c.i2c_write(data, minclock, reqclock)
 
 class EMC2101_PWMPinWrapper:
     def __init__(self, emc2101, printer, mcu):
