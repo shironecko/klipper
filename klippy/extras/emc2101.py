@@ -3,7 +3,7 @@
 # Copyright (C) 2023  Vii <vii@gamecraft.tech>
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
-import logging
+import logging, pins
 from . import bus
 
 EMC2101_CHIP_ADDR = 0x4C
@@ -35,17 +35,31 @@ class EMC2101:
         self._mcu = self._i2c.get_mcu()
 
         self._last_clock = 0
+        self._fan_start_duty_cycle = 0.
+        self._fan_shutdown_duty_cycle = 0.
+
+        self._pwm_pin = EMC2101_PWMPinWrapper(
+            self,
+            self._printer,
+            self._mcu)
 
         self._printer.add_object('emc2101 ' + self._name, self)
-        self._printer.register_event_handler("klippy:connect",
-                                            self.handle_connect)
+        self._printer.register_event_handler(
+            'klippy:connect',
+            self._handle_connect)
+        self._printer.register_event_handler(
+            'klippy:shutdown',
+            self._handle_shutdown)
+        
+        # Register virtual PWM pin
+        self._printer.lookup_oblect('pins').register_chip(self._name, self)
     
-    def handle_connect(self):
+    def _handle_connect(self):
         chipid = self._read_register('WHOAMI', 1)[0]
         if chipid != EMC2101_CHIP_ID and chipid != EMC2101_R_CHIP_ID:
-            logging.error(f'emc2101 {self._name}: Unexpected chip ID {chipid:0x}')
+            logging.error(f'EMC2101 {self._name}: Unexpected chip ID {chipid:0x}')
         else:
-            logging.info(f'emc2101 {self._name}: Chip ID {chipid:0x}')
+            logging.info(f'EMC2101 {self._name}: Chip ID {chipid:0x}')
 
         settings = self._read_register('CONFIG', 1)[0]
         settings |= 1 << 2 # enable tach input
@@ -68,8 +82,31 @@ class EMC2101:
 
         # lowest temperature meauserment rate
         self._write_register('DATA_RATE', 0x0)
+
+        self.set_fan_duty_cycle(self._fan_start_duty_cycle)
     
-    def set_fan_speed(self, print_time, value):
+    def _handle_shutdown(self):
+        self.set_fan_duty_cycle(self._fan_shutdown_duty_cycle)
+    
+    def setup_pin(self, pin_type, pin_params):
+        if pin_params['pin'] == 'virtual_pwm':
+            if pin_type != 'pwm':
+                raise pins.error('EMC2101 Virtual PWM pin can only be used for PWM')
+            
+            self._pwm_pin.set_params(pin_params)
+            return self._pwm_pin
+        else:
+            raise pins.error(f'EMC2101 does not have {pin_params["pin"]} pin')
+    
+    def set_fan_pwm_cycle_time(self, cycle_time):
+        # TODO: implement
+        pass
+    
+    def set_fan_default_duty_cycle(self, start_duty_cycle, shutdown_duty_cycle):
+        self._fan_start_duty_cycle = start_duty_cycle
+        self._fan_shutdown_duty_cycle = shutdown_duty_cycle
+
+    def set_fan_duty_cycle(self, print_time, value):
         clock = self._mcu.print_time_to_clock(print_time)
         minclock = self._last_clock
         self._last_clock = clock
@@ -104,6 +141,41 @@ class EMC2101:
         reg = EMC2101_REGS[reg_name]
         data.insert(0, reg)
         self._i2c.i2c_write(data, minclock=minclock, reqclock=reqclock)
+
+class EMC2101_PWMPinWrapper:
+    def __init__(self, emc2101, printer, mcu):
+        self._emc2101 = emc2101
+        self._printer = printer
+        self._mcu = mcu
+        self._invert = False
+
+    def set_params(self, pin_params):
+        if pin_params['pullup'] != 0:
+            raise pins.error('EMC2101 virtual PWM pin does not support pullup')
+        
+        if pin_params['invert'] != 1:
+            # Technically not true, but supporting that would require changes to Fan class
+            raise pins.error('EMC2101 virtual PWM pin can not be inverted')
+
+    def set_pwm(self, print_time, value):
+        self._emc2101.set_fan_duty_cycle(print_time, value)
+
+    def setup_cycle_time(self, cycle_time, hardware_pwm):
+        if not hardware_pwm:
+            raise pins.error('EMC2101 virtual PWM pin does not support software PWM')
+        
+        self._emc2101.set_fan_pwm_cycle_time(cycle_time)
+        
+    def setup_start_value(self, start_pwm, shutdown_pwm):
+        self._emc2101.set_fan_default_duty_cycle(
+            max(0., min(1., start_pwm)),
+            max(0., min(1., shutdown_pwm)))
+    
+    def get_mcu(self):
+        return self._mcu
+    def setup_max_duration(self, value):
+        if value != 0.:
+            raise pins.error('EMC2101 virtual PWM pin can not have max duration')
 
 def load_config_prefix(config):
     return EMC2101(config)
