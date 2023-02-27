@@ -52,7 +52,7 @@ class EMC2101:
             self._handle_shutdown)
         
         # Register virtual PWM pin
-        self._printer.lookup_oblect('pins').register_chip(self._name, self)
+        self._printer.lookup_object('pins').register_chip(self._name, self)
     
     def _handle_connect(self):
         chipid = self._read_register('WHOAMI', 1)[0]
