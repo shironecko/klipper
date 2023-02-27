@@ -91,7 +91,6 @@ class FanTachometer:
             poll_time = config.getfloat('tachometer_poll_interval',
                                         0.0015, above=0.)
             sample_time = 1.
-            
             self._freq_counter = pulse_counter.FrequencyCounter(
                 printer, pin, sample_time, poll_time)
             return

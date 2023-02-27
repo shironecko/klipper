@@ -92,8 +92,8 @@ class EMC2101:
         else:
             raise pins.error(f'EMC2101 does not have {pin_params["pin"]} pin')
     
-    def setup_tachometer(self, config, sample_time):
-        return EMC2101_Tachometer(config, self, sample_time)
+    def setup_tachometer(self, config):
+        return EMC2101_Tachometer(config, self)
     
     def set_fan_pwm_cycle_time(self, cycle_time):
         # TODO: implement
@@ -115,7 +115,7 @@ class EMC2101:
         mapped_value = int(63 * value)
         self._write_register('FAN_SETTING', mapped_value, minclock, reqclock)
     
-    def get_fan_rpm(self):
+    def get_fan_rpm(self, ppr):
         lsb = self._read_register('TACH_LSB', 1)[0]
         msb = self._read_register('TACH_MSB', 1)[0]
         raw = (msb << 8) | lsb
@@ -175,15 +175,17 @@ class EMC2101_Virtual_PWM_Pin:
             raise pins.error('EMC2101 virtual PWM pin can not have max duration')
 
 class EMC2101_Tachometer:
-    def __init__(self, config, emc2101, sample_time):
+    def __init__(self, config, emc2101):
         self._emc2101 = emc2101
-        self._sample_time = sample_time
+        self._ppr = config.getint('tachometer_ppr', 2, minval=1)
+        self._poll_time = config.getfloat('tachometer_poll_time', 1., above=0.1)
         self._last_rpm = 0
         printer = config.get_printer()
         self._reactor = printer.get_reactor()
         self._poll_timer = self._reactor.register_timer(self._poll_rpm)
-        self.printer.register_event_handler("klippy:ready",
-                                            self._handle_ready)
+        self.printer.register_event_handler(
+            "klippy:ready",
+            self._handle_ready)
         
     def _handle_ready(self):
         self._reactor.update_timer(self._poll_timer, self._reactor.NOW)
@@ -192,7 +194,8 @@ class EMC2101_Tachometer:
         return self._last_rpm
 
     def _poll_rpm(self, eventtime):
-        pass
+        self._last_rpm = self._emc2101.get_fan_rpm(self._ppr)
+        return self._reactor.monotonic() + self._poll_time
 
 def load_config_prefix(config):
     return EMC2101(config)
